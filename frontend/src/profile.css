@@ -1,0 +1,2 @@
+.profile-stats{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:23px}.profile-stats .stat-card{min-height:95px}.member-bio{grid-column:1/-1;color:#727889;font-size:13px;line-height:1.7;margin:16px 0 0}
+.admin-password-panel{grid-column:1/-1;margin-top:24px;padding-top:21px;border-top:1px solid var(--line)}.admin-password-panel .panel-title{margin-bottom:15px}.admin-password-panel .panel-title h2{margin-top:5px}

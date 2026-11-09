@@ -1,0 +1,28 @@
+const express = require('express')
+const authLogin = require('../auth/auth.login')
+const authRegister = require('../auth/auth.register')
+const taskRoutes = require('./task.route')
+const learningMaterialRoutes = require('./learningMaterial.route')
+const submissionRoutes = require('./submission.route')
+const memberRoutes = require('./member.route')
+const profileRoutes = require('./profile.route')
+const pointsRoutes = require('./points.route')
+const leaderboardRoutes = require('./leaderboard.route')
+const verifyToken = require('../middleware/verifyToken')
+
+const router = express.Router()
+
+router.use('/auth/login', authLogin)
+router.use('/auth/register', authRegister)
+router.get('/auth/me', verifyToken(), (req, res) => {
+    res.status(200).json({ status: true, message: 'Sesi aktif', data: { user: req.user } })
+})
+router.use('/tasks', taskRoutes)
+router.use('/learning-materials', learningMaterialRoutes)
+router.use('/submissions', submissionRoutes)
+router.use('/members', memberRoutes)
+router.use('/profile', profileRoutes)
+router.use('/points', pointsRoutes)
+router.use('/leaderboard', leaderboardRoutes)
+
+module.exports = router
