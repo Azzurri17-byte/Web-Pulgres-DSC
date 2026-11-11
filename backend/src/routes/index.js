@@ -8,6 +8,7 @@ const memberRoutes = require('./member.route')
 const profileRoutes = require('./profile.route')
 const pointsRoutes = require('./points.route')
 const leaderboardRoutes = require('./leaderboard.route')
+const memberProjectRoutes = require('./memberProject.route')
 const verifyToken = require('../middleware/verifyToken')
 
 const router = express.Router()
@@ -24,5 +25,6 @@ router.use('/members', memberRoutes)
 router.use('/profile', profileRoutes)
 router.use('/points', pointsRoutes)
 router.use('/leaderboard', leaderboardRoutes)
+router.use('/member-projects', memberProjectRoutes)
 
 module.exports = router

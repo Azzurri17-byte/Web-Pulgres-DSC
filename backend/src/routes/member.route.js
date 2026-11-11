@@ -101,6 +101,11 @@ router.get('/:id', verifyToken(), async (req, res) => {
              WHERE u.id = ? AND u.role = 'member' AND (? = TRUE OR u.is_active = TRUE) LIMIT 1`, [req.params.id, canSeeNim]
         )
         if (!rows.length) return errorResponse(404, 'Anggota tidak ditemukan', res)
+        const [projects] = await db.promise().execute(
+            "SELECT id, title, description, project_url, repository_url, created_at FROM member_projects WHERE user_id = ? AND status = 'published' AND deleted_at IS NULL ORDER BY created_at DESC, id DESC",
+            [req.params.id]
+        )
+        rows[0].projects = projects
         return response(200, 'Profil anggota berhasil diambil', rows[0], res)
     } catch (error) {
         console.error('Gagal mengambil profil anggota:', error)

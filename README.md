@@ -1,6 +1,6 @@
 # PulGres
 
-PulGres adalah website untuk mendukung kegiatan UKM Developer Student. Anggota dapat mengakses tugas dan materi belajar, mengirim hasil pengerjaan, serta memantau poin. Admin mengelola akses anggota, tugas, submission, dan materi pembelajaran.
+PulGres adalah website untuk mendukung kegiatan UKM Developer Student. Anggota dapat mengakses tugas dan materi belajar, mengirim hasil pengerjaan, mempublikasikan project setelah persetujuan admin, serta memantau poin dan leaderboard. Admin mengelola akses anggota, tugas, submission, project anggota, dan materi pembelajaran.
 
 Dokumen kebutuhan produk dan roadmap tersedia di [PRD.md](PRD.md).
 
@@ -27,6 +27,16 @@ Dokumen kebutuhan produk dan roadmap tersedia di [PRD.md](PRD.md).
 - Anggota hanya melihat dan mengunduh materi yang sudah diterbitkan.
 - File divalidasi di backend dan dibatasi maksimal 25 MB.
 
+### Project anggota
+
+- Anggota mengirim project dengan judul, deskripsi, dan minimal satu URL project atau repository yang valid.
+- Setiap anggota dapat mengirim maksimal tiga project baru per hari. Project baru berstatus `pending` dan tidak tampil di profil sebelum disetujui admin.
+- Admin meninjau pengajuan di menu **Proyek anggota**, lalu menyetujui atau menolak dan menghapusnya.
+- Persetujuan menerbitkan project dan memberi anggota 5 poin satu kali.
+- Setelah disetujui, anggota dapat mengedit, menghapus, mengarsipkan, dan menerbitkan kembali project miliknya. Perubahan tersebut tidak menggunakan kuota kiriman harian.
+- Profil anggota menampilkan project yang sedang berstatus `published`. Leaderboard juga menampilkan jumlah project terbit.
+- Project yang dihapus disembunyikan dari daftar tetapi tetap dicatat agar penghapusan tidak mengembalikan slot kuota harian.
+
 ### Poin dan aktivitas
 
 - Anggota melihat profil, total poin, dan leaderboard.
@@ -46,6 +56,10 @@ Dokumen kebutuhan produk dan roadmap tersedia di [PRD.md](PRD.md).
 | Mengelola akun dan persetujuan pendaftar | Ya | Tidak |
 | Mengelola materi pembelajaran | Ya | Tidak |
 | Melihat dan mengunduh materi terbit | Ya | Ya |
+| Mengirim project untuk persetujuan | Tidak | Ya, maksimal 3 per hari |
+| Meninjau project anggota dan memberi 5 poin saat menyetujui | Ya | Tidak |
+| Mengelola project milik sendiri yang sudah disetujui | Tidak | Ya |
+| Melihat project terbit di profil dan jumlahnya di leaderboard | Ya | Ya |
 
 Permintaan akun yang belum disetujui tidak dapat menggunakan endpoint terautentikasi.
 
@@ -68,14 +82,17 @@ Buat database yang namanya sesuai `DB_NAME` di `backend/.env`, lalu jalankan ske
 mysql -u root -p web_pulgres < backend/schema.sql
 ```
 
-Sesuaikan `web_pulgres` dengan nama database yang digunakan. Untuk database yang sudah ada, jalankan migrasi persetujuan akun:
+Sesuaikan `web_pulgres` dengan nama database yang digunakan. Untuk database yang sudah ada, jalankan migrasi yang belum pernah diterapkan:
 
 ```sh
 mysql -u root -p web_pulgres < backend/migrations/20261108_pending_member_approval.sql
 mysql -u root -p web_pulgres < backend/migrations/20261108_learning_material_optional_files.sql
+mysql -u root -p web_pulgres < backend/migrations/20261109_learning_material_url_optional.sql
+mysql -u root -p web_pulgres < backend/migrations/20261111_member_project_soft_delete.sql
+mysql -u root -p web_pulgres < backend/migrations/20261111_member_project_approval.sql
 ```
 
-Migrasi pertama mengubah nilai default `is_active` menjadi `FALSE`; status akun yang sudah tersimpan tidak diubah. Migrasi kedua membuat lampiran modul pembelajaran opsional. Pendaftaran publik juga menetapkan akun baru sebagai nonaktif secara eksplisit.
+Migrasi persetujuan akun mengubah nilai default `is_active` menjadi `FALSE`; status akun yang sudah tersimpan tidak diubah. Migrasi materi membuat file dan URL modul opsional. Migrasi project menambahkan penanda penghapusan dan mengubah project baru ke status menunggu persetujuan. Jalankan setiap migrasi hanya satu kali dan lewati migrasi yang sudah diterapkan. Pendaftaran publik menetapkan akun baru sebagai nonaktif secara eksplisit.
 
 ### 2. Konfigurasi dan jalankan backend
 
@@ -144,6 +161,7 @@ Semua endpoint API memakai prefix `/api`.
 | Submission | `/submissions` | Anggota mengirim submission; admin meninjau |
 | Anggota | `/members` | Admin melihat, menyetujui, mengaktifkan, dan mengelola akun |
 | Materi | `/learning-materials` | Admin mengelola; anggota membaca daftar materi terbit |
+| Project anggota | `/member-projects` | Anggota mengirim dan mengelola project miliknya setelah disetujui; admin meninjau pengajuan |
 | Poin | `/points` | Anggota melihat poin sendiri; admin melakukan penyesuaian |
 | Leaderboard | `/leaderboard` | Admin dan anggota aktif |
 | Profil | `/profile` | Pengguna terautentikasi mengelola profilnya sendiri; admin mengonfirmasi `PWD_KEY` untuk mengganti password |
@@ -151,6 +169,8 @@ Semua endpoint API memakai prefix `/api`.
 Perubahan password admin memakai `POST /api/profile/admin/password/verify` untuk mengonfirmasi key dan `PATCH /api/profile/admin/password` untuk menyimpan password baru. Kedua endpoint memerlukan sesi admin, dan backend memeriksa `PWD_KEY` pada keduanya.
 
 Endpoint unduhan materi adalah `GET /api/learning-materials/:id/download`. Endpoint tersebut memeriksa status publikasi dan sesi pengguna.
+
+Project anggota dikelola melalui `GET /api/member-projects/mine`, `POST /api/member-projects`, `PATCH/DELETE /api/member-projects/:id`, dan `PATCH /api/member-projects/:id/status`. Admin menggunakan `GET /api/member-projects/admin/pending`, `PATCH /api/member-projects/:id/approve`, dan `DELETE /api/member-projects/:id/reject`. API memeriksa role, kepemilikan, status persetujuan, URL, dan kuota harian di backend.
 
 ## Keamanan
 

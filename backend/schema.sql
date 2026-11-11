@@ -215,6 +215,37 @@ CREATE TABLE learning_materials (
 
 
 -- =========================================
+-- 7. MEMBER_PROJECT
+-- Tempat menyimpan hasil project member
+-- =========================================
+
+CREATE TABLE member_projects (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+
+    user_id BIGINT UNSIGNED NOT NULL,
+
+    title VARCHAR(150) NOT NULL,
+    description TEXT,
+
+    project_url VARCHAR(500) DEFAULT NULL,
+    repository_url VARCHAR(500) DEFAULT NULL,
+
+    status ENUM('draft', 'pending', 'published', 'archived')
+        NOT NULL DEFAULT 'pending',
+
+    deleted_at TIMESTAMP NULL DEFAULT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_member_projects_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+);
+
+-- =========================================
 -- END OF SCHEMA
 -- =========================================
 

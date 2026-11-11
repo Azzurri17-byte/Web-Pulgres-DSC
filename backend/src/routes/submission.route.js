@@ -233,7 +233,7 @@ router.put('/:id', verifyToken(['member']), handleUpload, async (req, res) => {
     }
 })
 
-router.delete('/:id', verifyToken(['admin']), async (req, res) => {
+router.delete('/:id', verifyToken(), async (req, res) => {
     if (!asId(req.params.id)) return errorResponse(400, 'ID submission tidak valid', res)
     const connection = await db.promise().getConnection()
     let submission
@@ -241,7 +241,7 @@ router.delete('/:id', verifyToken(['admin']), async (req, res) => {
     try {
         await connection.beginTransaction()
         const [rows] = await connection.execute(
-            'SELECT id, user_id, attachment_url FROM submissions WHERE id = ? FOR UPDATE',
+            'SELECT id, user_id, status, attachment_url FROM submissions WHERE id = ? FOR UPDATE',
             [req.params.id]
         )
         if (!rows.length) {
@@ -249,6 +249,15 @@ router.delete('/:id', verifyToken(['admin']), async (req, res) => {
             return errorResponse(404, 'Submission tidak ditemukan', res)
         }
         submission = rows[0]
+
+        if (req.user.role !== 'admin' && Number(submission.user_id) !== Number(req.user.id)) {
+            await connection.rollback()
+            return errorResponse(404, 'Submission tidak ditemukan', res)
+        }
+        if (req.user.role !== 'admin' && submission.status !== 'pending') {
+            await connection.rollback()
+            return errorResponse(409, 'Submission hanya dapat dihapus selama masih menunggu review', res)
+        }
 
         const [pointRows] = await connection.execute(
             'SELECT COALESCE(SUM(points_delta), 0) AS points_to_remove FROM point_transactions WHERE submission_id = ?',
@@ -268,7 +277,7 @@ router.delete('/:id', verifyToken(['admin']), async (req, res) => {
     }
 
     await removeStoredAttachment(submission.attachment_url)
-    notify('submission-deleted', submission.user_id, { submission_id: submission.id })
+    notify('submission-deleted', submission.user_id, { submission_id: submission.id, deleted_by_role: req.user.role })
     if (pointsRemoved > 0) {
         try {
             const [totals] = await db.promise().execute(
