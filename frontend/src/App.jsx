@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { io } from 'socket.io-client'
-import { ClipboardList, ClipboardPen, LibraryBig, Podium, SquareUser, Summary, UserCog } from 'lucide-react'
+import { ClipboardList, ClipboardPen, Code2, ExternalLink, FolderGit2, FolderUser, LibraryBig, LogOut, Podium, SquareUser, Summary, UserCog } from 'lucide-react'
 import { api, apiBaseUrl, messageFrom } from './api'
 
 const socketUrl = apiBaseUrl.startsWith('/')
@@ -302,6 +302,14 @@ function Tasks({ user }) {
     }
     catch (err) { setNotice(messageFrom(err)) }
   }
+  const deleteOwnSubmission = async (task) => {
+    if (!window.confirm(`Hapus submission untuk tugas “${task.title}”? Setelah dihapus, kamu bisa mengirim file pengganti.`)) return
+    try {
+      await api.delete(`/submissions/${task.submission_id}`)
+      setNotice('Submission berhasil dihapus. Kamu bisa mengirim tugas kembali.')
+      await refresh()
+    } catch (err) { setNotice(messageFrom(err)) }
+  }
   return <>
     <PageHeading eyebrow="AKTIVITAS UKM" title="Tugas" detail={admin ? 'Buat, publikasikan, dan arsipkan tugas anggota.' : 'Pilih tugas dan kirim hasil pengerjaanmu.'} />
     <Notice>{notice || error}</Notice>
@@ -321,7 +329,7 @@ function Tasks({ user }) {
           <label>Deadline<input type="datetime-local" value={editForm.deadline} onChange={(event) => setEditForm({ ...editForm, deadline: event.target.value })} /></label>
           <div className="row-actions"><button className="button compact primary" disabled={savingEdit}>{savingEdit ? 'Menyimpan…' : 'Simpan perubahan'}</button><button type="button" className="button compact subtle" disabled={savingEdit} onClick={() => { setEditingTask(null); setEditForm(null) }}>Batal</button></div>
         </form>}</>
-        : <><button className="button primary" onClick={() => setSubmitting(submitting === task.id ? null : task.id)} disabled={task.is_expired || task.submission_status === 'pending' || task.submission_status === 'approved'}>{task.is_expired ? 'Tenggat terlewat' : task.submission_status === 'revision' ? 'Kirim revisi' : task.submission_status ? 'Sudah dikirim' : 'Kumpulkan tugas'}</button>
+        : <><div className="row-actions"><button className="button primary" onClick={() => setSubmitting(submitting === task.id ? null : task.id)} disabled={task.is_expired || task.submission_status === 'pending' || task.submission_status === 'approved'}>{task.is_expired ? 'Tenggat terlewat' : task.submission_status === 'revision' ? 'Kirim revisi' : task.submission_status ? 'Sudah dikirim' : 'Kumpulkan tugas'}</button>{task.submission_status === 'pending' && task.submission_id && <button type="button" className="button compact danger" onClick={() => deleteOwnSubmission(task)}>Hapus submission</button>}</div>
           {submitting === task.id && <form className="form-stack submit-form" onSubmit={(e) => submitTask(e, task)}><label>Deskripsi pengerjaan<textarea name="submission_content" rows="3" /></label><label>Lampiran PDF<input type="file" name="attachment" accept=".pdf,application/pdf" /></label><button className="button primary">Kirim submission</button></form>}</>}
     </article>)}</div> : <section className="panel"><Empty>Belum ada tugas yang tersedia.</Empty></section>}
   </>
@@ -576,7 +584,7 @@ function Members() {
 function Leaderboard({ user }) {
   const { data, error, loading } = useData(async () => (await api.get('/leaderboard?limit=100')).data.data.items, [])
   return <><PageHeading eyebrow="APRESIASI ANGGOTA" title="Leaderboard" detail="Poin dihitung dari persetujuan tugas dan penyesuaian admin." /><Notice>{error}</Notice>
-    {loading ? <LoadingPage /> : <section className="panel table-panel"><div className="table-scroll"><table><thead><tr><th>Peringkat</th><th>Anggota</th><th>Total poin</th><th>Tugas selesai</th></tr></thead><tbody>{data?.map((m) => <tr className={String(m.id) === String(user.id) ? 'current-user' : ''} key={m.id}><td><span className="rank">{String(m.ranking).padStart(2, '0')}</span></td><td><div className="member-cell">{m.avatar_url ? <img src={avatarSource(m.avatar_url)} alt={`Avatar ${m.display_name || m.username}`} /> : <span className="avatar">{(m.display_name || m.username).slice(0, 1).toUpperCase()}</span>}<Link className="text-link" to={`/members/${m.id}`}>{m.display_name || m.username}</Link></div></td><td><strong>{m.total_points}</strong></td><td>{m.completed_tasks}</td></tr>)}</tbody></table></div></section>}
+    {loading ? <LoadingPage /> : <section className="panel table-panel"><div className="table-scroll"><table><thead><tr><th>Peringkat</th><th>Anggota</th><th>Total poin</th><th>Tugas selesai</th><th>Proyek</th></tr></thead><tbody>{data?.map((m) => <tr className={String(m.id) === String(user.id) ? 'current-user' : ''} key={m.id}><td><span className="rank">{String(m.ranking).padStart(2, '0')}</span></td><td><div className="member-cell">{m.avatar_url ? <img src={avatarSource(m.avatar_url)} alt={`Avatar ${m.display_name || m.username}`} /> : <span className="avatar">{(m.display_name || m.username).slice(0, 1).toUpperCase()}</span>}<Link className="text-link" to={`/members/${m.id}`}>{m.display_name || m.username}</Link></div></td><td><strong>{m.total_points}</strong></td><td>{m.completed_tasks}</td><td>{m.published_projects}</td></tr>)}</tbody></table></div></section>}
   </>
 }
 
@@ -585,7 +593,131 @@ function MemberProfile() {
   const { data, error, loading } = useData(async () => (await api.get(`/members/${id}`)).data.data, [id])
   if (loading) return <LoadingPage />
   return <><PageHeading eyebrow="PROFIL ANGGOTA" title={data?.display_name || data?.username || 'Profil'} detail={data?.username ? `@${data.username}` : ''} /><Notice>{error}</Notice>
-    {data && <section className="panel profile-panel"><div className="profile-avatar">{data.avatar_url ? <img src={avatarSource(data.avatar_url)} alt={`Avatar ${data.display_name || data.username}`} /> : (data.display_name || data.username).slice(0, 1).toUpperCase()}</div><div><h2>{data.display_name || data.username}</h2><p className="muted">@{data.username}</p></div><div className="profile-stats"><Card title="Total poin" value={data.total_points} /><Card title="Tugas selesai" value={data.completed_tasks} /></div><p className="member-bio">{data.bio || 'Anggota UKM Developer Student.'}</p></section>}
+    {data && <><section className="panel profile-panel"><div className="profile-avatar">{data.avatar_url ? <img src={avatarSource(data.avatar_url)} alt={`Avatar ${data.display_name || data.username}`} /> : (data.display_name || data.username).slice(0, 1).toUpperCase()}</div><div><h2>{data.display_name || data.username}</h2><p className="muted">@{data.username}</p></div><div className="profile-stats"><Card title="Total poin" value={data.total_points} /><Card title="Tugas selesai" value={data.completed_tasks} /></div><p className="member-bio">{data.bio || 'Anggota UKM Developer Student.'}</p></section>
+      <section className="panel project-panel"><div className="panel-title"><div><span className="eyebrow">KARYA ANGGOTA</span><h2>Project yang dipublikasikan</h2></div></div>
+        {data.projects?.length ? <div className="project-list">{data.projects.map((project) => <article className="project-item" key={project.id}><div className="project-item-heading"><div><h3>{project.title}</h3><p>{project.description || 'Tidak ada deskripsi.'}</p></div><FolderGit2 size={18} /></div><div className="project-links project-url-list">{project.project_url && <a href={project.project_url} target="_blank" rel="noreferrer"><ExternalLink size={13} /> <span>Project: {project.project_url}</span></a>}{project.repository_url && <a href={project.repository_url} target="_blank" rel="noreferrer"><Code2 size={13} /> <span>Repository: {project.repository_url}</span></a>}</div></article>)}</div> : <Empty>Anggota ini belum mempublikasikan project.</Empty>}
+      </section></>}
+  </>
+}
+
+function MemberProjects() {
+  const { data, error, loading, refresh } = useData(async () => (await api.get('/member-projects/mine')).data.data, [])
+  const emptyForm = { title: '', description: '', project_url: '', repository_url: '' }
+  const [form, setForm] = useState(emptyForm)
+  const [editingId, setEditingId] = useState(null)
+  const [editForm, setEditForm] = useState(emptyForm)
+  const [notice, setNotice] = useState('')
+  const [saving, setSaving] = useState(false)
+  const create = async (event) => {
+    event.preventDefault()
+    setNotice('')
+    if (!form.project_url.trim() && !form.repository_url.trim()) {
+      setNotice('Isi minimal satu URL project atau repository.')
+      return
+    }
+    setSaving(true)
+    try {
+      await api.post('/member-projects', form)
+      setForm(emptyForm)
+      setNotice('Project berhasil dikirim dan menunggu persetujuan admin.')
+      await refresh()
+    } catch (e) { setNotice(messageFrom(e)) } finally { setSaving(false) }
+  }
+  const updateStatus = async (project, status) => {
+    try {
+      await api.patch(`/member-projects/${project.id}/status`, { status })
+      setNotice(`Project berhasil ${status === 'archived' ? 'diarsipkan' : 'dipublikasikan'}.`)
+      await refresh()
+    } catch (e) { setNotice(messageFrom(e)) }
+  }
+  const startEditing = (project) => {
+    setEditingId(project.id)
+    setEditForm({ title: project.title, description: project.description || '', project_url: project.project_url || '', repository_url: project.repository_url || '' })
+    setNotice('')
+  }
+  const saveEdit = async (event, project) => {
+    event.preventDefault()
+    setNotice('')
+    if (!editForm.project_url.trim() && !editForm.repository_url.trim()) {
+      setNotice('Isi minimal satu URL project atau repository.')
+      return
+    }
+    setSaving(true)
+    try {
+      await api.patch(`/member-projects/${project.id}`, editForm)
+      setEditingId(null)
+      setNotice('Project berhasil diperbarui. Kuota harian tidak berubah.')
+      await refresh()
+    } catch (e) { setNotice(messageFrom(e)) } finally { setSaving(false) }
+  }
+  const removeProject = async (project) => {
+    if (!window.confirm(`Hapus project “${project.title}”? Kuota hari ini tetap terpakai.`)) return
+    try {
+      await api.delete(`/member-projects/${project.id}`)
+      setNotice('Project berhasil dihapus. Kuota harian tidak berubah.')
+      await refresh()
+    } catch (e) { setNotice(messageFrom(e)) }
+  }
+  if (loading) return <LoadingPage />
+  const projects = data?.items || []
+  const remaining = Math.max(0, (data?.daily_limit || 3) - (data?.created_today || 0))
+  return <><PageHeading eyebrow="PORTOFOLIO SAYA" title="Project saya" detail="Bagikan hasil project kepada anggota PulGres lainnya." />
+    <Notice>{notice || error}</Notice>
+    <section className="panel form-panel"><div className="panel-title"><div><span className="eyebrow">PROJECT BARU</span><h2>Publikasikan hasil project</h2></div><span className="points">Sisa hari ini: {remaining}/3</span></div>
+      <form className="project-form" onSubmit={create}><label>Judul project<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} maxLength="150" required /></label><label>Deskripsi<textarea rows="3" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label><div className="project-url-fields"><label>URL project (opsional)<input type="url" placeholder="https://…" value={form.project_url} onChange={(e) => setForm({ ...form, project_url: e.target.value })} maxLength="500" /></label><label>URL repository (opsional)<input type="url" placeholder="https://github.com/…" value={form.repository_url} onChange={(e) => setForm({ ...form, repository_url: e.target.value })} maxLength="500" /></label></div><small className="form-help">Isi minimal satu URL project atau repository. Maksimal 3 project baru per hari; project menunggu persetujuan admin.</small><button className="button primary" disabled={saving || remaining === 0}>{saving ? 'Mengirim…' : 'Kirim untuk ditinjau'}</button></form>
+    </section>
+    <section className="panel project-panel"><div className="panel-title"><div><span className="eyebrow">DAFTAR KARYA</span><h2>Project yang kamu kelola</h2></div><span className="muted">{projects.length} project</span></div>
+      {projects.length ? <div className="project-list">{projects.map((project) => <article className="project-item" key={project.id}>
+        <div className="project-item-heading"><div><h3>{project.title}</h3><p>{project.description || 'Tidak ada deskripsi.'}</p><small>{new Date(project.created_at).toLocaleDateString('id-ID')}</small></div><Status value={project.status} /></div>
+        <div className="project-links project-url-list">
+          {project.project_url && <a href={project.project_url} target="_blank" rel="noreferrer"><ExternalLink size={13} /> <span>Project: {project.project_url}</span></a>}
+          {project.repository_url && <a href={project.repository_url} target="_blank" rel="noreferrer"><Code2 size={13} /> <span>Repository: {project.repository_url}</span></a>}
+        </div>
+        {project.status === 'pending' && <small className="form-help">Menunggu persetujuan admin. Project belum tampil di profil.</small>}
+        {editingId === project.id ? <form className="project-form project-edit-form" onSubmit={(event) => saveEdit(event, project)}>
+          <label>Judul project<input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} maxLength="150" required /></label>
+          <label>Deskripsi<textarea rows="3" value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} /></label>
+          <div className="project-url-fields"><label>URL project<input type="url" value={editForm.project_url} onChange={(e) => setEditForm({ ...editForm, project_url: e.target.value })} maxLength="500" /></label><label>URL repository<input type="url" value={editForm.repository_url} onChange={(e) => setEditForm({ ...editForm, repository_url: e.target.value })} maxLength="500" /></label></div>
+          <small className="form-help">Edit project tidak menggunakan kuota project baru hari ini.</small>
+          <div className="row-actions"><button className="button primary compact" disabled={saving}>{saving ? 'Menyimpan…' : 'Simpan perubahan'}</button><button type="button" className="button subtle compact" disabled={saving} onClick={() => setEditingId(null)}>Batal</button></div>
+        </form> : ['published', 'archived'].includes(project.status) ? <div className="project-links project-manage"><button type="button" className="button subtle compact" onClick={() => startEditing(project)}>Edit</button>{project.status === 'published' ? <button type="button" className="button subtle compact" onClick={() => updateStatus(project, 'archived')}>Arsipkan</button> : <button type="button" className="button compact primary" onClick={() => updateStatus(project, 'published')}>Terbitkan</button>}<button type="button" className="button compact danger" onClick={() => removeProject(project)}>Hapus</button></div> : null}
+      </article>)}</div> : <Empty>Belum ada project. Project yang dipublikasikan akan tampil di profilmu.</Empty>}
+    </section>
+  </>
+}
+
+function AdminMemberProjects() {
+  const { data, error, loading, refresh } = useData(async () => (await api.get('/member-projects/admin/pending')).data.data, [])
+  const [notice, setNotice] = useState('')
+  const [busyId, setBusyId] = useState(null)
+  const approve = async (project) => {
+    setBusyId(project.id)
+    try {
+      await api.patch(`/member-projects/${project.id}/approve`)
+      setNotice(`Berhasil: project “${project.title}” disetujui. Member mendapat 5 poin.`)
+      await refresh()
+    } catch (e) { setNotice(messageFrom(e)) } finally { setBusyId(null) }
+  }
+  const reject = async (project) => {
+    if (!window.confirm(`Tolak dan hapus project “${project.title}” dari @${project.username}?`)) return
+    setBusyId(project.id)
+    try {
+      await api.delete(`/member-projects/${project.id}/reject`)
+      setNotice(`Project “${project.title}” ditolak dan dihapus.`)
+      await refresh()
+    } catch (e) { setNotice(messageFrom(e)) } finally { setBusyId(null) }
+  }
+  if (loading) return <LoadingPage />
+  const projects = data || []
+  return <><PageHeading eyebrow="MODERASI KARYA" title="Proyek anggota" detail="Tinjau project yang dikirim member sebelum tampil di profil." action={<button type="button" className="button subtle" onClick={refresh} disabled={loading}>Muat ulang</button>} />
+    <Notice>{notice || error}</Notice>
+    <section className="panel project-panel admin-project-panel"><div className="panel-title"><div><span className="eyebrow">PERLU PERSETUJUAN</span><h2>Project menunggu review</h2></div><span className="status pending">{projects.length} menunggu</span></div>
+      {projects.length ? <div className="project-list">{projects.map((project) => <article className="project-item" key={project.id}>
+        <div className="project-item-heading"><div><h3>{project.title}</h3><p>{project.description || 'Tidak ada deskripsi.'}</p><small>Dikirim oleh {project.display_name || project.username} (@{project.username}) · {new Date(project.created_at).toLocaleDateString('id-ID')}</small></div><FolderGit2 size={18} /></div>
+        <div className="project-links project-url-list">{project.project_url && <a href={project.project_url} target="_blank" rel="noreferrer"><ExternalLink size={13} /> <span>Project: {project.project_url}</span></a>}{project.repository_url && <a href={project.repository_url} target="_blank" rel="noreferrer"><Code2 size={13} /> <span>Repository: {project.repository_url}</span></a>}</div>
+        <div className="project-links"><button type="button" className="button primary compact" disabled={busyId === project.id} onClick={() => approve(project)}>{busyId === project.id ? 'Memproses…' : 'Setujui · +5 poin'}</button><button type="button" className="button compact danger" disabled={busyId === project.id} onClick={() => reject(project)}>Tolak & hapus</button></div>
+      </article>)}</div> : <Empty>Tidak ada project yang menunggu persetujuan.</Empty>}
+    </section>
   </>
 }
 
@@ -716,13 +848,15 @@ function Shell({ user, onLogout, children, onlineUsers, notices }) {
     { to: '/', label: 'Ringkasan', icon: Summary }, { to: '/tasks', label: 'Tugas', icon: ClipboardList },
     { to: '/learning-materials', label: 'Modul belajar', icon: LibraryBig },
     { to: '/submissions', label: user.role === 'admin' ? 'Submission' : 'Submission saya', icon: ClipboardPen },
+    ...(user.role === 'member' ? [{ to: '/member-projects', label: 'Project saya', icon: FolderGit2 }] : []),
+    ...(user.role === 'admin' ? [{ to: '/admin/member-projects', label: 'Proyek anggota', icon: FolderUser }] : []),
     ...(user.role === 'admin' ? [{ to: '/members', label: 'Anggota', icon: UserCog }] : []),
     { to: '/leaderboard', label: 'Leaderboard', icon: Podium }, { to: '/profile', label: 'Profil', icon: SquareUser }
   ]
   return <div className="app-shell">
     <aside className={`sidebar ${menuOpen ? 'open' : ''}`}><Link className="brand" to="/"><span className="brand-mark">P</span><span>PulGres<small>Developer Student</small></span></Link><div className="nav-label">MENU UTAMA</div><nav>{links.map((item) => <NavLink end={item.to === '/'} to={item.to} key={item.to} onClick={() => setMenuOpen(false)}><span className="nav-icon"><item.icon size={18} strokeWidth={1.8} /></span>{item.label}</NavLink>)}</nav><div className="sidebar-bottom"><div className="online-dot" />{onlineUsers.length} anggota online<div className="sidebar-note">Belajar bareng, tumbuh bareng.</div></div></aside>
     {menuOpen && <button aria-label="Tutup navigasi" className="scrim" onClick={() => setMenuOpen(false)} />}
-    <main className="main-area"><header className="topbar"><button className="menu-toggle" onClick={() => setMenuOpen(!menuOpen)}>☰</button><div className="crumb">PulGres <span>/</span> Dashboard</div><div className="top-user"><div className="notice-count" title={notices[0] || 'Tidak ada notifikasi'}>{notices.length ? '●' : '○'}</div><div className="user-copy"><strong>{user.username}</strong><small>{user.role === 'admin' ? 'Administrator' : 'Anggota'}</small></div><Link className="avatar" to="/profile">{avatarUrl ? <img src={avatarSource(avatarUrl)} alt={`Avatar ${user.username}`} /> : user.username.slice(0, 1).toUpperCase()}</Link><button className="logout" onClick={onLogout}>Keluar</button></div></header>
+    <main className="main-area"><header className="topbar"><button className="menu-toggle" onClick={() => setMenuOpen(!menuOpen)}>☰</button><div className="crumb">PulGres <span>/</span> Dashboard</div><div className="top-user"><div className="notice-count" title={notices[0] || 'Tidak ada notifikasi'}>{notices.length ? '●' : '○'}</div><div className="user-copy"><strong>{user.username}</strong><small>{user.role === 'admin' ? 'Administrator' : 'Anggota'}</small></div><Link className="avatar" to="/profile">{avatarUrl ? <img src={avatarSource(avatarUrl)} alt={`Avatar ${user.username}`} /> : user.username.slice(0, 1).toUpperCase()}</Link><button className="logout" onClick={onLogout}><LogOut size={15} strokeWidth={2} aria-hidden="true" /><span>Keluar</span></button></div></header>
       {notices.length > 0 && <div className="toast" role="status">{notices[0]}</div>}
       <div className="page-content">{children}</div><footer className="footer">PulGres <span>•</span> UKM Developer Student</footer>
     </main>
@@ -761,7 +895,9 @@ export default function App() {
       addNotice('Submission baru masuk untuk diperiksa.')
       setSubmissionUpdates((current) => current + 1)
     })
-    socket.on('submission-deleted', () => addNotice('Submission kamu telah dihapus oleh admin.'))
+    socket.on('submission-deleted', (event) => addNotice(event?.deleted_by_role === 'member'
+      ? 'Submission kamu berhasil dihapus. Silakan kirim file pengganti.'
+      : 'Submission kamu telah dihapus oleh admin.'))
     socket.on('points-revoked', (event) => addNotice(`${event.points} poin dikurangi. Total poin sekarang ${event.total_points}.`))
     socket.on('submission-reviewed', (event) => addNotice(`Submission kamu ${event.status === 'approved' ? 'disetujui' : 'memerlukan revisi'}.`))
     socket.on('points-earned', (event) => addNotice(`Kamu mendapat ${event.points} poin. Total ${event.total_points ?? ''}.`))
@@ -778,6 +914,8 @@ export default function App() {
       <Route path="/tasks" element={<Tasks user={user} />} />
       <Route path="/learning-materials" element={<LearningMaterials user={user} updateKey={learningMaterialUpdates} />} />
       <Route path="/submissions" element={<Submissions user={user} updateKey={submissionUpdates} />} />
+      <Route path="/member-projects" element={user.role === 'member' ? <MemberProjects /> : <Navigate to="/" replace />} />
+      <Route path="/admin/member-projects" element={user.role === 'admin' ? <AdminMemberProjects /> : <Navigate to="/" replace />} />
       <Route path="/members" element={user.role === 'admin' ? <Members /> : <Navigate to="/" replace />} />
       <Route path="/members/:id" element={<MemberProfile user={user} />} />
       <Route path="/leaderboard" element={<Leaderboard user={user} />} />
